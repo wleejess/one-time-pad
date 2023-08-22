@@ -1,5 +1,3 @@
-// From exploration.
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -38,7 +36,7 @@ void setupAddressStruct(struct sockaddr_in* address, int portNumber, char* hostn
 int main(int argc, char *argv[]) {
   int socketFD, portNumber;
   struct sockaddr_in serverAddress;
-  char buffer[256];
+  char buffer[2000];
 
   // Check usage & arguments
   if (argc < 4) {
@@ -59,6 +57,7 @@ int main(int argc, char *argv[]) {
     error("ENC_CLIENT: ERROR connecting");
   }
 
+  // Send initial msg that this is the ENC client. Should only be communicating with ENC server.
   const char* id_check = "enc\0";
   send(socketFD, id_check, strlen(id_check), 0);
 
@@ -68,40 +67,50 @@ int main(int argc, char *argv[]) {
   FILE *keyFile = fopen(argv[2], "r");
   if (!keyFile) error("ENC_CLIENT: ERROR opening key file");
 
-  char plaintext[256];
+  char plaintext[2000];
   memset(plaintext, '\0', sizeof(plaintext));
-  fgets(plaintext, sizeof(plaintext), plaintextFile);
-  plaintext[strcspn(plaintext, "\n")] = '\0';
-  fclose(plaintextFile);
 
-  char key[256];
+  char key[2000];
   memset(key, '\0', sizeof(key));
-  fgets(key, sizeof(key), keyFile);
-  key[strlen(key)] = '\0';
-  fclose(keyFile);
 
-  if (strlen(key) < strlen(plaintext)) {
-    fprintf(stderr, "ENC_CLIENT: ERROR - Key is too short to encrypt plaintext.\n");
-    exit(1);
+  while (fgets(key, sizeof(key), keyFile) != NULL && fgets(plaintext, sizeof(plaintext), plaintextFile) != NULL) {
+    key[strlen(key)] = '\0'; 
+    plaintext[strcspn(plaintext, "\n")] = '\0';
+
+    // Send msg to server and write to server.
+    ssize_t charsWritten = send(socketFD, key, strlen(key), 0);
+    if (charsWritten < 0) error("CLIENT: ENC_CLIENT: ERROR writing to socket");
+    if (charsWritten < strlen(key)) error("CLIENT: WARNING - not all data written.");
+
+    charsWritten = send(socketFD, plaintext, strlen(plaintext), 0);
+    if (charsWritten < 0) error("CLIENT: ENC_CLIENT: ERROR writing plaintext to socket.");
+    if (charsWritten < strlen(plaintext)) error("CLIENT: WARNING - not all data written.");
+
+    if (strlen(key) < strlen(plaintext)) {
+      fprintf(stderr, "ENC_CLIENT: ERROR - Key is too short to encrypt plaintext.\n");
+      exit(1);
+    }
+
+    memset(plaintext, '\0', sizeof(plaintext));
+    memset(key, '\0', sizeof(key));
+ 
+    // Get return message from server
+    // Clear out the buffer again for reuse
+    memset(buffer, '\0', sizeof(buffer));
+
+    // Read data from the socket, leaving \0 at end.
+    ssize_t charsRead = recv(socketFD, buffer, sizeof(buffer), 0);
+    if (charsRead < 0) error("CLIENT: ENC_CLIENT: ERROR reading from socket");
+    if (charsRead == 0) {
+      printf("Server closed connection.\n");
+      break;
+    }
+    printf("%s", buffer);
   }
 
-  // Send msg to server and write to server.
-  ssize_t charsWritten = send(socketFD, key, strlen(key), 0);
-  if (charsWritten < 0) error("CLIENT: ENC_CLIENT: ERROR writing to socket");
-  if (charsWritten < strlen(key)) error("CLIENT: WARNING - not all data written.");
+  fclose(plaintextFile);
+  fclose(keyFile);
 
-  charsWritten = send(socketFD, plaintext, strlen(plaintext), 0);
-  if (charsWritten < 0) error("CLIENT: ENC_CLIENT: ERROR writing plaintext to socket.");
-  if (charsWritten < strlen(plaintext)) error("CLIENT: WARNING - not all data written.");
-  
-
-  // Get return message from server
-  // Clear out the buffer again for reuse
-  memset(buffer, '\0', sizeof(buffer));
-  // Read data from the socket, leaving \0 at end.
-  ssize_t charsRead = recv(socketFD, buffer, sizeof(buffer), 0);
-  if (charsRead < 0) error("CLIENT: ENC_CLIENT: ERROR reading from socket");
-  printf("%s\n", buffer);
   close(socketFD);
   return 0;
 }

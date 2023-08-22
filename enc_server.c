@@ -33,8 +33,8 @@ int encrypt(char* message, char* key) {
   for(int i=0; i < strlen(message); i++) {
     for(int j=0; j < TOTAL_INVALID; j++) {
       if (message[i] == invalid_chars[j]) {
-        message = "\0";
         error("ENC_SERVER: Invalid character found. No message will be encrypted.");
+        return 1;
       }
     }
   }
@@ -102,7 +102,6 @@ int main(int argc, char *argv[]) {
     }
 
     if (childPid == 0) {
-
       // Check if connection is from dec_client. Should only take if from enc_client*
       char id_check[4];
       memset(id_check, '\0', sizeof(id_check));
@@ -115,30 +114,35 @@ int main(int argc, char *argv[]) {
         exit(1);
       } 
 
-      char key[256];
-      char message[256];
+      char key[2000];             
+      char message[2000];
 
-      memset(key, '\0', sizeof(key));
-      memset(message, '\0', sizeof(message));
+      while (1) {
+        memset(key, '\0', sizeof(key));
+        memset(message, '\0', sizeof(message));
 
-      charsRead = recv(connectionSocket, key, sizeof(key) - 1, 0);
-      if (charsRead < 0) error("ENC_SERVER: ERROR reading from socket");
-      if (charsRead < strlen(key)) error("ENC_SERVER: WARNING not all characters read.");
+        charsRead = recv(connectionSocket, key, sizeof(key) - 1, 0);
+        if (charsRead < 0) error("ENC_SERVER: ERROR reading from socket");
+        if (charsRead < strlen(key)) error("ENC_SERVER: WARNING not all characters read.");
 
-      charsRead = recv(connectionSocket, message, sizeof(message) - 1, 0);
-      if (charsRead < 0) error("ENC_SERVER: ERROR reading from socket");
-      if (charsRead < strlen(message)) error("ENC_SERVER: WARNING not all characters read.");
+        charsRead = recv(connectionSocket, message, sizeof(message) - 1, 0);
+        if (charsRead < 0) error("ENC_SERVER: ERROR reading from socket");
+        if (charsRead < strlen(message)) error("ENC_SERVER: WARNING not all characters read.");
 
-      if (strlen(key) < strlen(message)) {
-        fprintf(stderr, "Key too short!\n");
-        exit(1);
+        if (strlen(key) < strlen(message)) {
+          fprintf(stderr, "Key too short!\n");
+          exit(1);
+        }
+
+        int permittedMsg = encrypt(message, key);
+        if (permittedMsg == 1) {
+          close(connectionSocket);
+          exit(0);
+        }
+
+        ssize_t charsWritten = send(connectionSocket, message, strlen(message), 0);
+        if (charsWritten < 0) error("ENC_SERVER: WARNING not all characters written");
       }
-
-      encrypt(message, key);
-
-      ssize_t charsWritten = send(connectionSocket, message, strlen(message), 0);
-      if (charsWritten < 0) error("ENC_SERVER: WARNING not all characters written");
-
       close(connectionSocket);
       exit(0);
     } else {

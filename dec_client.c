@@ -38,7 +38,7 @@ void setupAddressStruct(struct sockaddr_in* address, int portNumber, char* hostn
 int main(int argc, char *argv[]) {
   int socketFD, portNumber, charsWritten, charsRead;
   struct sockaddr_in serverAddress;
-  char buffer[256];
+  char buffer[2000];
 
   // Check usage & arguments
   if (argc < 4) {
@@ -68,39 +68,52 @@ int main(int argc, char *argv[]) {
   FILE *keyFile = fopen(argv[2], "r");
   if (!keyFile) error("DEC_CLIENT: ERROR opening key file");
 
-  char ciphertext[256];
+  char ciphertext[2000];
   memset(ciphertext, '\0', sizeof(ciphertext));
-  fgets(ciphertext, sizeof(ciphertext), ciphertextFile);
-  ciphertext[strcspn(ciphertext, "\n")] = '\0';
-  fclose(ciphertextFile);
 
-  char key[256];
+  char key[2000];
   memset(key, '\0', sizeof(key));
-  fgets(key, sizeof(key), keyFile);
-  key[strcspn(key, "\n")] = '\0';
-  fclose(keyFile);
 
-  if (strlen(key) < strlen(ciphertext)) {
-    fprintf(stderr, "DEC_CLIENT: ERROR - Key is too short to decrypt plaintext.\n");
-    exit(1);
+
+  while (fgets(key, sizeof(key), keyFile) != NULL && fgets(ciphertext, sizeof(ciphertext), ciphertextFile) != NULL) {
+    key[strcspn(key, "\n")] = '\0';
+    ciphertext[strcspn(ciphertext, "\n")] = '\0';
+    
+    if (strlen(key) < strlen(ciphertext)) {
+      fprintf(stderr, "DEC_CLIENT: ERROR - Key is too short to decrypt ciphertext.\n");
+      exit(1);
+    }
+
+    // Send msg to server and write to server.
+    charsWritten = send(socketFD, key, strlen(key), 0);
+    if (charsWritten < 0) error("DEC_CLIENT: ERROR writing to socket");
+    if (charsWritten < strlen(key)) printf("CLIENT: WARNING: Not all data written to socket!\n");
+
+    charsWritten = send(socketFD, ciphertext, strlen(ciphertext), 0);
+    if (charsWritten < 0) error("DEC_CLIENT: ERROR writing to socket");
+    if (charsWritten < strlen(ciphertext)) printf("CLIENT: WARNING: Not all data written to socket!\n");
+    
+    memset(ciphertext, '\0', sizeof(ciphertext));
+    memset(key, '\0', sizeof(key));
+
+    // Get return message from server
+    // Clear out the buffer again for reuse
+    memset(buffer, '\0', sizeof(buffer));
+
+    // Read data from the socket, leaving \0 at end.
+    charsRead = recv(socketFD, buffer, sizeof(buffer), 0);
+    if (charsRead < 0) error("DEC_CLIENT: ERROR reading from socket (return msg from server).");
+    if (charsRead == 0) {
+      printf("Server closed connection.\n");
+      break;
+    }
+    printf("%s", buffer);
   }
 
-  // Send msg to server and write to server.
-  charsWritten = send(socketFD, key, strlen(key), 0);
-  if (charsWritten < 0) error("DEC_CLIENT: ERROR writing to socket");
-  if (charsWritten < strlen(key)) printf("CLIENT: WARNING: Not all data written to socket!\n");
-  
-  charsWritten = send(socketFD, ciphertext, strlen(ciphertext), 0);
-  if (charsWritten < 0) error("DEC_CLIENT: ERROR writing to socket");
-  if (charsWritten < strlen(ciphertext)) printf("CLIENT: WARNING: Not all data written to socket!\n");
-  
-  // Get return message from server
-  // Clear out the buffer again for reuse
-  memset(buffer, '\0', sizeof(buffer));
-  // Read data from the socket, leaving \0 at end.
-  charsRead = recv(socketFD, buffer, sizeof(buffer), 0);
-  if (charsRead < 0) error("DEC_CLIENT: ERROR reading from socket (return msg from server).");
-  printf("%s\n", buffer);
+  fclose(ciphertextFile);
+  fclose(keyFile);
+  printf("\n");
+
   close(socketFD);
   return 0;
 }

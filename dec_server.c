@@ -50,8 +50,6 @@ int decrypt(char* message, char* key){
     message[i] = valid_chars[val];
   }
 
-  message[strlen(message)] = '\0';        // End with null terminator
-
   return 0;
 }
 
@@ -93,7 +91,8 @@ int main(int argc, char *argv[]) {
     }
 
     if (childPid == 0) {
-      
+
+      // Check if connection is from enc_client. Should only take from dec_client*
       char id_check[4];
       memset(id_check, '\0', sizeof(id_check));
       ssize_t charsRead = recv(connectionSocket, id_check, sizeof(id_check) - 1, 0);
@@ -105,29 +104,34 @@ int main(int argc, char *argv[]) {
           exit(1);
       }
 
-      char key[256];
-      char message[256];
+      char key[2000];
+      char message[2000];
 
-      memset(key, '\0', sizeof(key));
-      memset(message, '\0', sizeof(message));
-     
-      charsRead = recv(connectionSocket, key, sizeof(key) - 1, 0);
-      if (charsRead < 0) error("DEC_SERVER: ERROR reading key from socket");
-      if (charsRead < strlen(key)) error("DEC_SERVER: WARNING not all key chars read");
+      while (1) {
 
-      charsRead = recv(connectionSocket, message, sizeof(message) - 1, 0);
-      if (charsRead < 0) error("DEC_SERVER: ERROR reading msg from socket");
-      if (charsRead < strlen(message)) error("DEC_SERVER: WARNING not all msg chars read");
+        memset(key, '\0', sizeof(key));
+        memset(message, '\0', sizeof(message));
 
-      if (strlen(key) < strlen(message)) {
-        fprintf(stderr, "DEC_SERVER: Key too short!\n");
-        exit(1);
+        charsRead = recv(connectionSocket, key, sizeof(key) - 1, 0);
+        if (charsRead < 0) error("DEC_SERVER: ERROR reading key from socket");
+        if (charsRead < strlen(key)) error("DEC_SERVER: WARNING not all key chars read");
+
+        charsRead = recv(connectionSocket, message, sizeof(message) - 1, 0);
+        if (charsRead < 0) error("DEC_SERVER: ERROR reading msg from socket");
+        if (charsRead < strlen(message)) error("DEC_SERVER: WARNING not all msg chars read");
+
+        if (strlen(key) < strlen(message)) {
+          fprintf(stderr, "DEC_SERVER: Key too short!\n");
+          exit(1);
+        }
+
+        decrypt(message, key);
+
+        ssize_t charsWritten = send(connectionSocket, message, strlen(message), 0);
+        if (charsWritten < 0) error("DEC_SERVER: ERROR writing to socket");
       }
-
-      decrypt(message, key);
-
-      ssize_t charsWritten = send(connectionSocket, message, strlen(message), 0);
-      if (charsWritten < 0) error("DEC_SERVER: ERROR writing to socket");
+      close(connectionSocket);
+      exit(1);
     } else {
       close(connectionSocket);
     }
