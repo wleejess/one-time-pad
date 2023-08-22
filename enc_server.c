@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 
 #define TOTAL_VALID 27
+#define TOTAL_INVALID 33
 
 void error(const char *msg) {
   perror(msg);
@@ -15,23 +16,35 @@ void error(const char *msg) {
 
 void setupAddressStruct(struct sockaddr_in* address, int portNumber) {
   memset((char*) address, '\0', sizeof(*address));
-
   address->sin_family = AF_INET;
   address->sin_port = htons(portNumber);
   address->sin_addr.s_addr = INADDR_ANY;
 }
 
-int encrypt(char* message, char* key, char* encryptedMsg) {
+int encrypt(char* message, char* key) {
   // Same mapping array as keygen.
   const char valid_chars[TOTAL_VALID] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
+  const char invalid_chars[TOTAL_INVALID] = "abcedfghijklmnopqrstuvwxyz!#$*%?@";
 
   int msgChars[strlen(message)];
   int keyChars[strlen(key)];
+
+  // Check if there are invalid characters.
+  for(int i=0; i < strlen(message); i++) {
+    for(int j=0; j < TOTAL_INVALID; j++) {
+      if (message[i] == invalid_chars[j]) {
+        message = "\0";
+        error("ENC_SERVER: Invalid character found. No message will be encrypted.");
+      }
+    }
+  }
  
-  // Conver msg to char indices based on valid_chars.
+  // Convert msg to char indices based on valid_chars.
   for(int i=0; i < strlen(message); i++) {
     for(int j=0; j < TOTAL_VALID; j++) {
-      if (message[i] == valid_chars[j]) msgChars[i] = j;
+      if (message[i] == valid_chars[j]) {
+        msgChars[i] = j;
+      }
     }
   }
 
@@ -54,7 +67,6 @@ int encrypt(char* message, char* key, char* encryptedMsg) {
 
 int main(int argc, char *argv[]) {
   int connectionSocket;
-  char buffer[256];
   struct sockaddr_in serverAddress, clientAddress;
   socklen_t sizeOfClientInfo = sizeof(clientAddress);
 
@@ -105,26 +117,27 @@ int main(int argc, char *argv[]) {
 
       char key[256];
       char message[256];
-      char encryptedMsg[256];
 
       memset(key, '\0', sizeof(key));
       memset(message, '\0', sizeof(message));
 
       charsRead = recv(connectionSocket, key, sizeof(key) - 1, 0);
       if (charsRead < 0) error("ENC_SERVER: ERROR reading from socket");
+      if (charsRead < strlen(key)) error("ENC_SERVER: WARNING not all characters read.");
 
       charsRead = recv(connectionSocket, message, sizeof(message) - 1, 0);
       if (charsRead < 0) error("ENC_SERVER: ERROR reading from socket");
+      if (charsRead < strlen(message)) error("ENC_SERVER: WARNING not all characters read.");
 
       if (strlen(key) < strlen(message)) {
         fprintf(stderr, "Key too short!\n");
         exit(1);
       }
 
-      encrypt(message, key, encryptedMsg);
+      encrypt(message, key);
 
-      charsRead = send(connectionSocket, message, strlen(message), 0);
-      if (charsRead < 0) error("ERROR writing to socket");
+      ssize_t charsWritten = send(connectionSocket, message, strlen(message), 0);
+      if (charsWritten < 0) error("ENC_SERVER: WARNING not all characters written");
 
       close(connectionSocket);
       exit(0);

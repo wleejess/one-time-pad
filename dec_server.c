@@ -8,7 +8,6 @@
 #include <netinet/in.h>
 
 #define TOTAL_VALID 27
-char decryptedMsg[256];
 
 void error(const char *msg) {
   perror(msg);
@@ -17,13 +16,12 @@ void error(const char *msg) {
 
 void setupAddressStruct(struct sockaddr_in* address, int portNumber) {
   memset((char*) address, '\0', sizeof(*address));
-
   address->sin_family = AF_INET;
   address->sin_port = htons(portNumber);
   address->sin_addr.s_addr = INADDR_ANY;
 }
 
-int decrypt(char* message, char* key, char* decryptedMsg){
+int decrypt(char* message, char* key){
   // Same mapping array as keygen.
   const char valid_chars[TOTAL_VALID] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
 
@@ -52,14 +50,13 @@ int decrypt(char* message, char* key, char* decryptedMsg){
     message[i] = valid_chars[val];
   }
 
-  decryptedMsg[strlen(message)] = '\0';
+  message[strlen(message)] = '\0';        // End with null terminator
 
   return 0;
 }
 
 int main(int argc, char *argv[]) {
   int connectionSocket;
-  char buffer[256];
   struct sockaddr_in serverAddress, clientAddress;
   socklen_t sizeOfClientInfo = sizeof(clientAddress);
 
@@ -99,7 +96,7 @@ int main(int argc, char *argv[]) {
       
       char id_check[4];
       memset(id_check, '\0', sizeof(id_check));
-      int charsRead = recv(connectionSocket, id_check, sizeof(id_check) - 1, 0);
+      ssize_t charsRead = recv(connectionSocket, id_check, sizeof(id_check) - 1, 0);
       if (charsRead < 0) error("DEC_SERVER: ERROR reading from socket");
 
       if (strcmp(id_check, "enc") == 0) {
@@ -113,23 +110,24 @@ int main(int argc, char *argv[]) {
 
       memset(key, '\0', sizeof(key));
       memset(message, '\0', sizeof(message));
-      memset(decryptedMsg, '\0', sizeof(decryptedMsg));
-
+     
       charsRead = recv(connectionSocket, key, sizeof(key) - 1, 0);
       if (charsRead < 0) error("DEC_SERVER: ERROR reading key from socket");
+      if (charsRead < strlen(key)) error("DEC_SERVER: WARNING not all key chars read");
 
       charsRead = recv(connectionSocket, message, sizeof(message) - 1, 0);
       if (charsRead < 0) error("DEC_SERVER: ERROR reading msg from socket");
+      if (charsRead < strlen(message)) error("DEC_SERVER: WARNING not all msg chars read");
 
       if (strlen(key) < strlen(message)) {
         fprintf(stderr, "DEC_SERVER: Key too short!\n");
         exit(1);
       }
 
-      decrypt(message, key, decryptedMsg);
+      decrypt(message, key);
 
-      charsRead = send(connectionSocket, message, strlen(message), 0);
-      if (charsRead < 0) error("DEC_SERVER: ERROR writing to socket");
+      ssize_t charsWritten = send(connectionSocket, message, strlen(message), 0);
+      if (charsWritten < 0) error("DEC_SERVER: ERROR writing to socket");
     } else {
       close(connectionSocket);
     }
