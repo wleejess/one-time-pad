@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
     error("DEC_CLIENT: ERROR connecting");
   }
 
-  const char* id_check = "dec";
+  const char* id_check = "dec\0";
   send(socketFD, id_check, strlen(id_check), 0);
 
   FILE *ciphertextFile = fopen(argv[1], "r");
@@ -70,13 +70,13 @@ int main(int argc, char *argv[]) {
 
   char ciphertext[256];
   memset(ciphertext, '\0', sizeof(ciphertext));
-  fgets(ciphertext, sizeof(ciphertext) - 1, ciphertextFile);
+  fgets(ciphertext, sizeof(ciphertext), ciphertextFile);
   ciphertext[strcspn(ciphertext, "\n")] = '\0';
   fclose(ciphertextFile);
 
   char key[256];
   memset(key, '\0', sizeof(key));
-  fgets(key, sizeof(key) - 1, keyFile);
+  fgets(key, sizeof(key), keyFile);
   key[strcspn(key, "\n")] = '\0';
   fclose(keyFile);
 
@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
   // Clear out the buffer again for reuse
   memset(buffer, '\0', sizeof(buffer));
   // Read data from the socket, leaving \0 at end.
-  charsRead = recv(socketFD, buffer, sizeof(buffer) - 1, 0);
+  charsRead = recv(socketFD, buffer, sizeof(buffer), 0);
   if (charsRead < 0) error("DEC_CLIENT: ERROR reading from socket (return msg from server).");
   printf("%s\n", buffer);
   close(socketFD);

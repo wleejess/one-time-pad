@@ -36,7 +36,7 @@ void setupAddressStruct(struct sockaddr_in* address, int portNumber, char* hostn
 }
 
 int main(int argc, char *argv[]) {
-  int socketFD, portNumber, charsWritten, charsRead;
+  int socketFD, portNumber;
   struct sockaddr_in serverAddress;
   char buffer[256];
 
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
     error("ENC_CLIENT: ERROR connecting");
   }
 
-  const char* id_check = "enc";
+  const char* id_check = "enc\0";
   send(socketFD, id_check, strlen(id_check), 0);
 
   FILE *plaintextFile = fopen(argv[1], "r");
@@ -70,12 +70,14 @@ int main(int argc, char *argv[]) {
 
   char plaintext[256];
   memset(plaintext, '\0', sizeof(plaintext));
-  fgets(plaintext, sizeof(plaintext) - 1, plaintextFile);
+  fgets(plaintext, sizeof(plaintext), plaintextFile);
+  plaintext[strcspn(plaintext, "\n")] = '\0';
   fclose(plaintextFile);
 
   char key[256];
   memset(key, '\0', sizeof(key));
-  fgets(key, sizeof(key) - 1, keyFile);
+  fgets(key, sizeof(key), keyFile);
+  key[strlen(key)] = '\0';
   fclose(keyFile);
 
   if (strlen(key) < strlen(plaintext)) {
@@ -84,12 +86,12 @@ int main(int argc, char *argv[]) {
   }
 
   // Send msg to server and write to server.
-  charsWritten = send(socketFD, key, strlen(key), 0);
-  if (charsWritten < 0) error("ENC_CLIENT: ERROR writing to socket");
+  ssize_t charsWritten = send(socketFD, key, strlen(key), 0);
+  if (charsWritten < 0) error("CLIENT: ENC_CLIENT: ERROR writing to socket");
   if (charsWritten < strlen(key)) error("CLIENT: WARNING - not all data written.");
 
   charsWritten = send(socketFD, plaintext, strlen(plaintext), 0);
-  if (charsWritten < 0) error("ENC_CLIENT: ERROR writing plaintext to socket.");
+  if (charsWritten < 0) error("CLIENT: ENC_CLIENT: ERROR writing plaintext to socket.");
   if (charsWritten < strlen(plaintext)) error("CLIENT: WARNING - not all data written.");
   
 
@@ -97,8 +99,8 @@ int main(int argc, char *argv[]) {
   // Clear out the buffer again for reuse
   memset(buffer, '\0', sizeof(buffer));
   // Read data from the socket, leaving \0 at end.
-  charsRead = recv(socketFD, buffer, sizeof(buffer) - 1, 0);
-  if (charsRead < 0) error("ENC_CLIENT: ERROR reading from socket");
+  ssize_t charsRead = recv(socketFD, buffer, sizeof(buffer), 0);
+  if (charsRead < 0) error("CLIENT: ENC_CLIENT: ERROR reading from socket");
   printf("%s\n", buffer);
   close(socketFD);
   return 0;

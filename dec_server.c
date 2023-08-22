@@ -47,14 +47,9 @@ int decrypt(char* message, char* key, char* decryptedMsg){
   // Subtract key from cipher text using modular arithmetic.
   for(int i=0; i < strlen(message); i++) {
     int diff = msgChars[i] - keyChars[i];
-    printf("msgchar ind and keychar ind %d %d\n", msgChars[i], keyChars[i]);
-
     if (diff < 0) diff = diff + TOTAL_VALID;
     int val = diff % 27;
-    printf("val for decrypt inde %d\n", val);
     message[i] = valid_chars[val];
-
-    printf("msg char is %c\n", message[i]);
   }
 
   decryptedMsg[strlen(message)] = '\0';
@@ -131,9 +126,7 @@ int main(int argc, char *argv[]) {
         exit(1);
       }
 
-      printf("message before decrypt %s\n", message);
       decrypt(message, key, decryptedMsg);
-      printf("message after decrypt %s\n", message);
 
       charsRead = send(connectionSocket, message, strlen(message), 0);
       if (charsRead < 0) error("DEC_SERVER: ERROR writing to socket");

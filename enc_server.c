@@ -53,7 +53,7 @@ int encrypt(char* message, char* key, char* encryptedMsg) {
 }
 
 int main(int argc, char *argv[]) {
-  int connectionSocket, charsRead;
+  int connectionSocket;
   char buffer[256];
   struct sockaddr_in serverAddress, clientAddress;
   socklen_t sizeOfClientInfo = sizeof(clientAddress);
@@ -73,11 +73,10 @@ int main(int argc, char *argv[]) {
   if (bind(listenSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) {
     error("ENC_SERVER: ERROR on binding");
   }
-  
+
   listen(listenSocket, 5);
 
   while (1) {
-
     connectionSocket = accept(listenSocket, (struct sockaddr *)&clientAddress, &sizeOfClientInfo);
     if (connectionSocket < 0) {
       error("ENC_SERVER: ERROR on accept");
@@ -95,7 +94,7 @@ int main(int argc, char *argv[]) {
       // Check if connection is from dec_client. Should only take if from enc_client*
       char id_check[4];
       memset(id_check, '\0', sizeof(id_check));
-      int charsRead = recv(connectionSocket, id_check, sizeof(id_check) - 1, 0);
+      ssize_t charsRead = recv(connectionSocket, id_check, sizeof(id_check) - 1, 0);
       if (charsRead < 0) error("ENC_SERVER: ERROR reading from socket");
 
       if (strcmp(id_check, "dec") == 0) {
@@ -113,25 +112,20 @@ int main(int argc, char *argv[]) {
 
       charsRead = recv(connectionSocket, key, sizeof(key) - 1, 0);
       if (charsRead < 0) error("ENC_SERVER: ERROR reading from socket");
-      if (charsRead < strlen(key)) error("ENC_SERVER: ERROR: Not all data key read from socket");
 
       charsRead = recv(connectionSocket, message, sizeof(message) - 1, 0);
       if (charsRead < 0) error("ENC_SERVER: ERROR reading from socket");
-      if (charsRead < strlen(message)) error("ENC_SERVER: ERROR: Not all msg data read from socket");
 
       if (strlen(key) < strlen(message)) {
         fprintf(stderr, "Key too short!\n");
         exit(1);
       }
 
-      printf("msg before encryption is %s", message);
       encrypt(message, key, encryptedMsg);
-      printf("msg after encryption is %s", message);
 
       charsRead = send(connectionSocket, message, strlen(message), 0);
       if (charsRead < 0) error("ERROR writing to socket");
 
-      close(listenSocket);
       close(connectionSocket);
       exit(0);
     } else {
@@ -139,4 +133,5 @@ int main(int argc, char *argv[]) {
     }
   }
   close(listenSocket);
+  return 0;
 }
