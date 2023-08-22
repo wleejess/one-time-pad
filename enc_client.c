@@ -107,6 +107,7 @@ int main(int argc, char *argv[]) {
     }
     printf("%s", buffer);
   }
+  printf("\n");
 
   fclose(plaintextFile);
   fclose(keyFile);
