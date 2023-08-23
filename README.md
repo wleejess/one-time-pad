@@ -1,5 +1,8 @@
-# otp
+# one-time-pad
 Portfolio project for my CS344 Operating Systems class at Oregon State University.
+OTP is an encryption technique that requires the use of a one-time **pre-shared** key that is >= the size of the message being sent. With this process, a **plaintext** file is paired with a random **secret key** (also referred to as a *one time pad*). Each character of the plaintext is encrypted by combining it with the corresponding character from the pad using modular addition.
+
+The resulting ciphertext will be decrypted in a similar manner using the **same key**.
 
 ## Specifications
 This program will encrypt and decrypt plaintext into ciphertext, using a key and modulo 27 operations. The 27 characters are the 26 capital letters, and the space character. All 27 characters will be encrypted and decrypted.
